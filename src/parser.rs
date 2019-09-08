@@ -1,9 +1,10 @@
-use {DEFAULT_PALETTE, DotVoxData, Model, model, palette, Size, Voxel};
+use {DEFAULT_PALETTE, DotVoxData, Model, model, palette, Size, Voxel, scene};
 use nom::IResult;
 use nom::types::CompleteByteSlice;
 use std::collections::HashMap;
 use std::str;
 use std::str::Utf8Error;
+use scene::{Node, NodeKind, SceneGraph};
 
 const MAGIC_NUMBER: &'static str = "VOX ";
 
@@ -15,6 +16,7 @@ pub enum Chunk {
     Pack(Model),
     Palette(Vec<u32>),
     Material(Material),
+    SceneNode(Node),
     Unknown(String),
     Invalid(Vec<u8>),
 }
@@ -63,6 +65,7 @@ fn map_chunk_to_data(version: u32, main: Chunk) -> DotVoxData {
             let mut models: Vec<Model> = vec![];
             let mut palette_holder: Vec<u32> = DEFAULT_PALETTE.to_vec();
             let mut materials: Vec<Material> = vec![];
+            let mut scene_graph = SceneGraph::new();
             for chunk in children {
                 match chunk {
                     Chunk::Size(size) => size_holder = Some(size),
@@ -74,6 +77,7 @@ fn map_chunk_to_data(version: u32, main: Chunk) -> DotVoxData {
                     Chunk::Pack(model) => models.push(model),
                     Chunk::Palette(palette) => palette_holder = palette,
                     Chunk::Material(material) => materials.push(material),
+                    Chunk::SceneNode(node) => scene_graph.add_node(node),
                     _ => debug!("Unmapped chunk {:?}", chunk)
                 }
             }
@@ -83,6 +87,7 @@ fn map_chunk_to_data(version: u32, main: Chunk) -> DotVoxData {
                 models,
                 palette: palette_holder,
                 materials,
+                scene: scene_graph.collapse_to_vec(),
             }
         }
         _ => DotVoxData {
@@ -90,6 +95,7 @@ fn map_chunk_to_data(version: u32, main: Chunk) -> DotVoxData {
             models: vec![],
             palette: vec![],
             materials: vec![],
+            scene: vec![],
         }
     }
 }
@@ -115,6 +121,9 @@ fn build_chunk(string: String,
             "PACK" => build_pack_chunk(chunk_content),
             "RGBA" => build_palette_chunk(chunk_content),
             "MATL" => build_material_chunk(chunk_content),
+            "nGRP" => build_group_node_chunk(chunk_content),
+            "nTRN" => build_transform_node_chunk(chunk_content),
+            "nSHP" => build_shape_node_chunk(chunk_content),
             _ => {
                 debug!("Unknown childless chunk {:?}", id);
                 Chunk::Unknown(id.to_owned())
@@ -177,6 +186,27 @@ fn build_voxel_chunk(chunk_content: CompleteByteSlice) -> Chunk {
     }
 }
 
+fn build_group_node_chunk(chunk_content: CompleteByteSlice) -> Chunk {
+    match scene::parse_group_node(chunk_content) {
+        Ok((_, node)) => Chunk::SceneNode(node),
+        _ => Chunk::Invalid(chunk_content.to_vec()),
+    }
+}
+
+fn build_transform_node_chunk(chunk_content: CompleteByteSlice) -> Chunk {
+    match scene::parse_transform_node(chunk_content) {
+        Ok((_, node)) => Chunk::SceneNode(node),
+        _ => Chunk::Invalid(chunk_content.to_vec()),
+    }
+}
+
+fn build_shape_node_chunk(chunk_content: CompleteByteSlice) -> Chunk {
+    match scene::parse_shape_node(chunk_content) {
+        Ok((_, node)) => Chunk::SceneNode(node),
+        _ => Chunk::Invalid(chunk_content.to_vec()),
+    }
+}
+
 named!(pub parse_material <CompleteByteSlice, Material>, do_parse!(
     id: le_u32 >>
     properties: parse_dict >>
@@ -184,7 +214,7 @@ named!(pub parse_material <CompleteByteSlice, Material>, do_parse!(
 ));
 
 
-named!(parse_dict <CompleteByteSlice, Dict>, do_parse!(
+named!(pub parse_dict <CompleteByteSlice, Dict>, do_parse!(
     count: le_u32 >>
     entries: many_m_n!(count as usize, count as usize, parse_dict_entry) >>
     (build_dict_from_entries(entries))

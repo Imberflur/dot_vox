@@ -18,14 +18,15 @@ mod dot_vox_data;
 mod palette;
 mod parser;
 mod model;
+mod scene;
 
 pub use dot_vox_data::DotVoxData;
 
 pub use parser::{Dict, Material};
 
-pub use model::Model;
-pub use model::Size;
-pub use model::Voxel;
+pub use model::{Model, Size, Voxel};
+
+pub use scene::Transform;
 
 use nom::types::CompleteByteSlice;
 
@@ -197,6 +198,7 @@ mod tests {
             ],
             palette: palette,
             materials: materials,
+            scene: vec![],
         }
     }
 
@@ -240,6 +242,16 @@ mod tests {
         assert!(result.is_ok());
         let (_, models) = result.unwrap();
         compare_data(models, placeholder(DEFAULT_PALETTE.to_vec(), DEFAULT_MATERIALS.to_vec()));
+    }
+
+    #[test]
+    fn can_parse_vox_file_with_scene() {
+        let bytes = include_bytes!("resources/two-model-scene.vox").to_vec();
+        let result = super::parse_vox_file(CompleteByteSlice(&bytes));
+        assert!(result.is_ok());
+        let (_, models) = result.unwrap();
+        println!("scene: {:#?}", models.scene);
+        //compare_data(models, placeholder(DEFAULT_PALETTE.to_vec(), DEFAULT_MATERIALS.to_vec()));
     }
 
     #[test]

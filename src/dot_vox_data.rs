@@ -1,4 +1,4 @@
-use {Material, Model};
+use {Material, Model, Transform};
 
 /// Container for .vox file data
 #[derive(Debug, PartialEq)]
@@ -11,4 +11,6 @@ pub struct DotVoxData {
     pub palette: Vec<u32>,
     /// A Vec containing all the Materials set
     pub materials: Vec<Material>,
+    // A Vec representing a scene via lists of transformations paired with model indices
+    pub scene: Vec<(Vec<Transform>, usize)>,
 }
