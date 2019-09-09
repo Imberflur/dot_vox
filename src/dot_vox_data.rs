@@ -11,6 +11,6 @@ pub struct DotVoxData {
     pub palette: Vec<u32>,
     /// A Vec containing all the Materials set
     pub materials: Vec<Material>,
-    // A Vec representing a scene via lists of transformations paired with model indices
-    pub scene: Vec<(Vec<Transform>, usize)>,
+    /// A Vec representing a scene via a list of transformations paired with model indices
+    pub scene: Vec<(Transform, usize)>,
 }

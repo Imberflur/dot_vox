@@ -4,7 +4,7 @@ use nom::types::CompleteByteSlice;
 use std::collections::HashMap;
 use std::str;
 use std::str::Utf8Error;
-use scene::{Node, NodeKind, SceneGraph};
+use scene::{Node, SceneGraph};
 
 const MAGIC_NUMBER: &'static str = "VOX ";
 

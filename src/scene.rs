@@ -71,13 +71,48 @@ pub enum NodeKind {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Transform {
     /// Translation
-    translation: [i32; 3],
+    pub t: [i32; 3],
     /// Row-major rotation matrix
-    rotation: [[i8; 3]; 3],
+    pub r: [[i8; 3]; 3],
 }
 impl Transform {
+    fn default() -> Self {
+        Self {
+            t: [0, 0, 0],
+            r: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+        }
+    }
+    fn apply(self, other: Self) -> Self {
+        let dot_i32 = |v1: [i32; 3], v2: [i32; 3] | v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
+        let dot_i8 = |v1: [i8; 3], v2: [i8; 3] | v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
+        let add = |v1: [i32; 3], v2: [i32; 3] | [v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2]];
+        let row_i32 = |m: [[i8; 3]; 3], r: usize| [m[r][0] as i32, m[r][1] as i32, m[r][2] as i32];
+        let col_i8 = |m: [[i8; 3]; 3], c| [m[0][c], m[1][c], m[2][c]];
+        let mul_mv_i32 = |m: [[i8; 3]; 3], v: [i32; 3]| [
+            dot_i32(row_i32(m, 0), v),
+            dot_i32(row_i32(m, 1), v),
+            dot_i32(row_i32(m, 2), v),
+        ];
+        let mul_vm_i8 = |v: [i8; 3], m: [[i8; 3]; 3]| [
+            dot_i8(v, col_i8(m, 0)),
+            dot_i8(v, col_i8(m, 1)),
+            dot_i8(v, col_i8(m, 2)),
+        ];
+
+        let t = add(mul_mv_i32(other.r, self.t), other.t);
+        let r = [
+            mul_vm_i8(other.r[0], self.r),
+            mul_vm_i8(other.r[1], self.r),
+            mul_vm_i8(other.r[2], self.r),
+        ];
+
+        Self {
+            t, 
+            r,
+        }
+    }
     fn from_dict(dict: Dict) -> Self {
-        let translation = dict.get("_t").and_then(|s| {
+        let t = dict.get("_t").and_then(|s| {
             let values = s.split(' ').map(str::parse::<i32>).filter_map(Result::ok).collect::<Vec<_>>();
             if values.len() == 3 {
                 Some([values[0], values[1], values[2]])
@@ -92,7 +127,7 @@ impl Transform {
         // 4   : 0 : the sign in the first row (0 : positive; 1 : negative)
         // 5   : 1 : the sign in the second row (0 : positive; 1 : negative)
         // 6   : 1 : the sign in the third row (0 : positive; 1 : negative)
-        let rotation = dict.get("_r").and_then(|s| {
+        let r = dict.get("_r").and_then(|s| {
             s.parse::<u8>().ok().and_then(|n| {
                 let signs = [
                     if n >> 4 & 1 == 0 { 1 } else { -1 },
@@ -121,8 +156,7 @@ impl Transform {
         }).unwrap_or([[1, 0, 0], [0, 1, 0], [0, 0, 1]]);
 
         Self {
-            translation,
-            rotation,
+            t, r
         }
     }
 }
@@ -135,12 +169,21 @@ impl SceneGraph {
     pub fn add_node(&mut self, node: Node) {
         self.0.insert(node.id, node.kind);
     }
-    pub fn collapse_to_vec(self) -> Vec<(Vec<Transform>, usize)> {
-        println!("graph: {:?}", self.0);
+    pub fn collapse_to_vec(self) -> Vec<(Transform, usize)> {
         // Assume that we have no cycles
         // Assume root node id is 0 and it is a Transform node
         if let Some(NodeKind::Transform{ child_id, transform }) = self.0.get(&0) {
             self.collapse_transform(*child_id, vec![*transform])
+                .iter()
+                .map(|(transforms, id)| (
+                    transforms
+                        .iter()
+                        .fold(
+                            Transform::default(),
+                            |transform, next| transform.apply(*next),
+                        ),
+                    *id,
+                )).collect::<Vec<_>>()
         } else {
             debug!("Unknown scene graph format: node 0 is not a Transform node");
             vec![]

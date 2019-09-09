@@ -88,6 +88,15 @@ use std::io::Read;
 ///       }
 ///     })
 ///     .collect(),
+///   scene: vec!(
+///     (
+///       Transform {
+///         t: [0, 0, 1],
+///         r: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+///       }, 
+///       0,
+///     )
+///   ),
 ///   });
 /// ```
 pub fn load(filename: &str) -> Result<DotVoxData, &'static str> {
@@ -151,6 +160,15 @@ pub fn load(filename: &str) -> Result<DotVoxData, &'static str> {
 ///       }
 ///     })
 ///     .collect(),
+///   scene: vec!(
+///     (
+///       Transform {
+///         t: [0, 0, 1],
+///         r: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+///       }, 
+///       0,
+///     )
+///   ),
 ///   });
 /// ```
 pub fn load_bytes(bytes: &[u8]) -> Result<DotVoxData, &'static str> {
@@ -249,9 +267,8 @@ mod tests {
         let bytes = include_bytes!("resources/two-model-scene.vox").to_vec();
         let result = super::parse_vox_file(CompleteByteSlice(&bytes));
         assert!(result.is_ok());
-        let (_, models) = result.unwrap();
-        println!("scene: {:#?}", models.scene);
-        //compare_data(models, placeholder(DEFAULT_PALETTE.to_vec(), DEFAULT_MATERIALS.to_vec()));
+        let (_, voxel_data) = result.unwrap();
+        assert!(voxel_data.scene.len() == 2);
     }
 
     #[test]
